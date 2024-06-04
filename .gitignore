@@ -1,0 +1,6 @@
+
+.gitattributes
+/.idea
+/__pycache__
+/failure_data
+*.ini
