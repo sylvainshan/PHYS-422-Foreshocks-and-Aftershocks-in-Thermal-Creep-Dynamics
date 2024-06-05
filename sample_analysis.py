@@ -39,18 +39,34 @@ def load_failure_data(filenames, directory, loading_segments, verbose=False):
     return all_failure_times, all_failure_idx
 
 
+# @jit(nopython=True, parallel=True)
+# def count_events_after(failure_times, t_events, time_windows):
+#     n_events_after = np.zeros((len(t_events), len(time_windows)))
+#     for i in prange(len(t_events)):
+#         t_event = t_events[i]
+#         for j in range(len(time_windows)):
+#             window = time_windows[j]
+#             t_end = t_event + window
+#             count = 0
+#             for k in range(len(failure_times)):
+#                 if t_event <= failure_times[k] <= t_end:
+#                     count += 1
+#             n_events_after[i, j] = count
+#     return n_events_after
+
+
 @jit(nopython=True, parallel=True)
 def count_events_after(failure_times, t_events, time_windows):
     n_events_after = np.zeros((len(t_events), len(time_windows)))
+    cumulative_counts = np.arange(1, len(failure_times) + 1)
     for i in prange(len(t_events)):
         t_event = t_events[i]
-        for j in range(len(time_windows)):
+        event_index = np.searchsorted(failure_times, t_event, side='left')
+        for j in prange(len(time_windows)):
             window = time_windows[j]
             t_end = t_event + window
-            count = 0
-            for k in range(len(failure_times)):
-                if t_event <= failure_times[k] <= t_end:
-                    count += 1
+            end_index = np.searchsorted(failure_times, t_end, side='right')
+            count = cumulative_counts[end_index - 1] - (cumulative_counts[event_index - 1] if event_index > 0 else 0)
             n_events_after[i, j] = count
     return n_events_after
 
@@ -58,17 +74,33 @@ def count_events_after(failure_times, t_events, time_windows):
 @jit(nopython=True, parallel=True)
 def count_events_before(failure_times, t_events, time_windows):
     n_events_before = np.zeros((len(t_events), len(time_windows)))
+    cumulative_counts = np.arange(1, len(failure_times) + 1)
     for i in prange(len(t_events)):
         t_event = t_events[i]
-        for j in range(len(time_windows)):
+        event_index = np.searchsorted(failure_times, t_event, side='right') - 1
+        for j in prange(len(time_windows)):
             window = time_windows[j]
             t_start = t_event - window
-            count = 0
-            for k in range(len(failure_times)):
-                if t_start <= failure_times[k] <= t_event:
-                    count += 1
+            start_index = np.searchsorted(failure_times, t_start, side='left')
+            count = cumulative_counts[event_index] - (cumulative_counts[start_index - 1] if start_index > 0 else 0)
             n_events_before[i, j] = count
     return n_events_before
+
+
+# @jit(nopython=True, parallel=True)
+# def count_events_before(failure_times, t_events, time_windows):
+#     n_events_before = np.zeros((len(t_events), len(time_windows)))
+#     for i in prange(len(t_events)):
+#         t_event = t_events[i]
+#         for j in range(len(time_windows)):
+#             window = time_windows[j]
+#             t_start = t_event - window
+#             count = 0
+#             for k in range(len(failure_times)):
+#                 if t_start <= failure_times[k] <= t_event:
+#                     count += 1
+#             n_events_before[i, j] = count
+#     return n_events_before
 
 
 def sample_filter_peaks(peak_times, peak_heights, heights, lower_bounds, upper_bounds):
@@ -203,7 +235,7 @@ def sample_analysis(times,
         random_peak_heights = smooth_activity[random_peak_idx]
 
         # Time windows to consider when counting events
-        time_windows = np.geomspace(t_start, t_stop, num=num_time_windows)
+        time_windows = np.linspace(t_start, t_stop, num=num_time_windows)
 
         # Keep times within the range
         peak_cond = (random_peak_times-t_stop > 0) & (random_peak_times+t_stop < times[-1])
@@ -247,7 +279,7 @@ def sample_analysis(times,
         DELTA_H = var_h * heights
         LOWER_BOUNDS = heights - DELTA_H
         UPPER_BOUNDS = heights + DELTA_H
-        time_windows = np.geomspace(t_start, t_stop, num=num_time_windows)
+        time_windows = np.linspace(t_start, t_stop, num=num_time_windows)
 
         # Filter peaks by the given heights
         filtered_peak_times, filtered_peak_heights = sample_filter_peaks(peak_times=peak_times,
@@ -332,9 +364,8 @@ def sample_analysis(times,
     return output_dict
 
 
-def n_events_around_microscopic_event(all_failure_times, N_random_peaks=20, t_start=1e-5, t_stop=1, num_time_windows=30, save=False, filename=None):
-
-    time_windows = np.geomspace(t_start, t_stop, num=num_time_windows)
+def n_events_around_microscopic_event(all_failure_times, N_random_peaks=20, t_start=1e-5, t_stop=1, num_time_windows=1000, save=False, filename=None):
+    time_windows = np.linspace(t_start, t_stop, num=num_time_windows)
     all_n_events_before = []
     all_n_events_after = []
     for failure_times in tqdm(all_failure_times, total=len(all_failure_times), desc="Computing events around microscopic events"):
@@ -353,6 +384,7 @@ def n_events_around_microscopic_event(all_failure_times, N_random_peaks=20, t_st
     std_n_after = np.std(all_n_events_after, axis=0, ddof=1)
 
     output_dict = {
+        "time_windows": time_windows,
         "n_before": all_n_events_before,
         "n_after": all_n_events_after,
         "mean_n_before": mean_n_before,
