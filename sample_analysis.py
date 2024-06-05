@@ -332,3 +332,41 @@ def sample_analysis(times,
     return output_dict
 
 
+def n_events_around_microscopic_event(all_failure_times, N_random_peaks=20, t_start=1e-5, t_stop=1, num_time_windows=30, save=False, filename=None):
+
+    time_windows = np.geomspace(t_start, t_stop, num=num_time_windows)
+    all_n_events_before = []
+    all_n_events_after = []
+    for failure_times in tqdm(all_failure_times, total=len(all_failure_times), desc="Computing events around microscopic events"):
+        t_events = np.random.choice(failure_times, N_random_peaks, replace=False)
+
+        valid_events = (t_events - t_stop > 0) & (t_events + t_stop < failure_times[-1])
+
+        n_events_before = count_events_before(failure_times, t_events[valid_events], time_windows)
+        n_events_after = count_events_after(failure_times, t_events[valid_events], time_windows)
+        all_n_events_before.extend(n_events_before)
+        all_n_events_after.extend(n_events_after)
+
+    mean_n_before = np.mean(all_n_events_before, axis=0)
+    mean_n_after = np.mean(all_n_events_after, axis=0)
+    std_n_before = np.std(all_n_events_before, axis=0, ddof=1)
+    std_n_after = np.std(all_n_events_after, axis=0, ddof=1)
+
+    output_dict = {
+        "n_before": all_n_events_before,
+        "n_after": all_n_events_after,
+        "mean_n_before": mean_n_before,
+        "mean_n_after": mean_n_after,
+        "std_n_before": std_n_before,
+        "std_n_after": std_n_after
+    }
+
+    if save:
+        sample_data_dir = os.path.join(SAVE_DIR, "random_microscopic_events")
+        if not os.path.exists(sample_data_dir):
+            os.makedirs(sample_data_dir)
+        save_path = os.path.join(sample_data_dir, filename)
+        with open(save_path, 'wb') as f:
+            pickle.dump(output_dict, f)
+
+    return output_dict
