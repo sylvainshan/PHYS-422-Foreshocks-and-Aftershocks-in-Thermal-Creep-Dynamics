@@ -1,5 +1,6 @@
 import os
 import h5py
+import pickle
 import powerlaw
 import numpy as np
 from tqdm import tqdm
@@ -108,18 +109,25 @@ def sample_heights_stats(times, sigma, threshold):
     }
 
 
-def all_sample_heights_stats(all_failure_times, sigma, threshold):
+def all_sample_heights_stats(all_failure_times, sigma, threshold, save=False, filename=None):
     all_heights_stats = {"all_peak_h": [],
                          "mean_all_h": [],
                          "std_all_h": [],
                          "n_peaks": 0}
-    for i in range(len(all_failure_times)):
+    for i in tqdm(range(len(all_failure_times)), total=len(all_failure_times), desc="Computing heights"):
         heights_stats = sample_heights_stats(all_failure_times[i], sigma, threshold)
         all_heights_stats["all_peak_h"].extend(heights_stats["peak_heights"])
 
     all_heights_stats["mean_all_h"] = np.mean(all_heights_stats["all_peak_h"])
     all_heights_stats["std_all_h"] = np.std(all_heights_stats["all_peak_h"], ddof=1)
     all_heights_stats["n_peaks"] = len(all_heights_stats["all_peak_h"])
+    if save:
+        height_dir = os.path.join(SAVE_DIR, "heights")
+        if not os.path.exists(height_dir):
+            os.makedirs(height_dir)
+        save_path = os.path.join(height_dir, filename)
+        with open(save_path, 'wb') as f:
+            pickle.dump(all_heights_stats, f)
     return all_heights_stats
 
 
@@ -141,7 +149,9 @@ def sample_analysis(times,
                     t_start=1e-7,
                     t_stop=2,
                     num_time_windows=30,
-                    verbose=False):
+                    verbose=False,
+                    save=False,
+                    filename=None):
 
     """
     Perform the sample analysis for the given time series of failures.
@@ -158,6 +168,8 @@ def sample_analysis(times,
     :param t_stop: stop time for the time windows
     :param num_time_windows: number of time windows to consider when counting events
     :param verbose: whether to print the results
+    :param save: whether to save the results
+    :param filename: name of the file to save the results
 
     :return output_dict: dictionary containing the results of the analysis
     """
@@ -220,6 +232,13 @@ def sample_analysis(times,
         output_dict["random_mean_a_after"] = random_mean_a_after
         output_dict["n_random_peaks"] = len(random_peak_times)
 
+        if save:
+            random_peaks_dir = os.path.join(SAVE_DIR, "random_peaks")
+            if not os.path.exists(random_peaks_dir):
+                os.makedirs(random_peaks_dir)
+            save_path = os.path.join(random_peaks_dir, filename)
+            with open(save_path, 'wb') as f:
+                pickle.dump(output_dict, f)
 
     if compute_activity_for_given_heights:
         print("Computing activity for given heights")
@@ -301,6 +320,14 @@ def sample_analysis(times,
         output_dict["n_peaks"] = n_peaks_before
     output_dict["peak_times"] = peak_times
     output_dict["peak_heights"] = peak_heights
+
+    if save:
+        sample_data_dir = os.path.join(SAVE_DIR, "sample_data")
+        if not os.path.exists(sample_data_dir):
+            os.makedirs(sample_data_dir)
+        save_path = os.path.join(sample_data_dir, filename)
+        with open(save_path, 'wb') as f:
+            pickle.dump(output_dict, f)
 
     return output_dict
 

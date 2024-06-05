@@ -10,9 +10,8 @@ def load_tau_alpha(filename):
 # ======================================================================================================================
 
 FAILURE_DATA_DIR = "failure_data/T=0.002"
-ACTIVITY_DATA_DIR = "activity_data/"
 FIGURE_DIR = "figures/"
-DIST_DIR = FIGURE_DIR + 'distribution/'
+SAVE_DIR = "data/"
 
 # ======================================================================================================================
 
