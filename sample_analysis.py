@@ -14,21 +14,25 @@ from scipy.ndimage import gaussian_filter1d
 def load_failure_data(filenames, directory, loading_segments, verbose=False):
     """
     Load the failure data from hdf5 files
+    
+    :param filenames: names of the hdf5 files
+    :param directory: directory containing the hdf5 files
+    :param loading_segments: number of segments to load
+    :param verbose: whether to print the filenames
     """
     data_directory_name = directory
     hdf5_files = [filename for filename in filenames]
-
     if verbose:
         print(f'Loading {len(hdf5_files)} hdf5 files...')
         for filename in hdf5_files:
             print(f'- {filename}')
-
     all_failure_times = []
     all_failure_idx = []
     t0_s_all = []
     for hdf5_file in tqdm(hdf5_files):
         path_hdf5 = os.path.join(data_directory_name, hdf5_file)
         with h5py.File(path_hdf5, mode='r') as file:
+            loading_segments = min(loading_segments, len(file['Thermal/avalanches/t']))
             all_failure_times.append(file['Thermal/avalanches/t'][:loading_segments].flatten())
             all_failure_idx.append(file['Thermal/avalanches/idx'][:loading_segments].flatten())
             t0_s_all.append(file['Thermal/avalanches/t0'][0])
@@ -55,38 +59,6 @@ def load_failure_data(filenames, directory, loading_segments, verbose=False):
 #     return n_events_after
 
 
-@jit(nopython=True, parallel=True)
-def count_events_after(failure_times, t_events, time_windows):
-    n_events_after = np.zeros((len(t_events), len(time_windows)))
-    cumulative_counts = np.arange(1, len(failure_times) + 1)
-    for i in prange(len(t_events)):
-        t_event = t_events[i]
-        event_index = np.searchsorted(failure_times, t_event, side='left')
-        for j in prange(len(time_windows)):
-            window = time_windows[j]
-            t_end = t_event + window
-            end_index = np.searchsorted(failure_times, t_end, side='right')
-            count = cumulative_counts[end_index - 1] - (cumulative_counts[event_index - 1] if event_index > 0 else 0)
-            n_events_after[i, j] = count
-    return n_events_after
-
-
-@jit(nopython=True, parallel=True)
-def count_events_before(failure_times, t_events, time_windows):
-    n_events_before = np.zeros((len(t_events), len(time_windows)))
-    cumulative_counts = np.arange(1, len(failure_times) + 1)
-    for i in prange(len(t_events)):
-        t_event = t_events[i]
-        event_index = np.searchsorted(failure_times, t_event, side='right') - 1
-        for j in prange(len(time_windows)):
-            window = time_windows[j]
-            t_start = t_event - window
-            start_index = np.searchsorted(failure_times, t_start, side='left')
-            count = cumulative_counts[event_index] - (cumulative_counts[start_index - 1] if start_index > 0 else 0)
-            n_events_before[i, j] = count
-    return n_events_before
-
-
 # @jit(nopython=True, parallel=True)
 # def count_events_before(failure_times, t_events, time_windows):
 #     n_events_before = np.zeros((len(t_events), len(time_windows)))
@@ -103,7 +75,62 @@ def count_events_before(failure_times, t_events, time_windows):
 #     return n_events_before
 
 
+@jit(nopython=True, parallel=True)
+def count_events_after(failure_times, t_events, time_windows):
+    """
+    Count the number of events after the given events within the given time windows
+    
+    :param failure_times: times of all the failures
+    :param t_events: times of the events
+    :param time_windows: time windows to consider
+    """
+    n_events_after = np.zeros((len(t_events), len(time_windows)))
+    cumulative_counts = np.arange(1, len(failure_times) + 1)
+    for i in prange(len(t_events)):
+        t_event = t_events[i]
+        event_index = np.searchsorted(failure_times, t_event, side='left')
+        for j in prange(len(time_windows)):
+            window = time_windows[j]
+            t_end = t_event + window
+            end_index = np.searchsorted(failure_times, t_end, side='right')
+            count = cumulative_counts[end_index - 1] - (cumulative_counts[event_index - 1] if event_index > 0 else 0)
+            n_events_after[i, j] = count
+    return n_events_after
+
+
+@jit(nopython=True, parallel=True)
+def count_events_before(failure_times, t_events, time_windows):
+    """
+    Count the number of events before the given events within the given time windows
+    
+    :param failure_times: times of all the failures
+    :param t_events: times of the events
+    :param time_windows: time windows to consider when counting events
+    """
+    n_events_before = np.zeros((len(t_events), len(time_windows)))
+    cumulative_counts = np.arange(1, len(failure_times) + 1)
+    for i in prange(len(t_events)):
+        t_event = t_events[i]
+        event_index = np.searchsorted(failure_times, t_event, side='right') - 1
+        for j in prange(len(time_windows)):
+            window = time_windows[j]
+            t_start = t_event - window
+            start_index = np.searchsorted(failure_times, t_start, side='left')
+            count = cumulative_counts[event_index] - (cumulative_counts[start_index - 1] if start_index > 0 else 0)
+            n_events_before[i, j] = count
+    return n_events_before
+
+
 def sample_filter_peaks(peak_times, peak_heights, heights, lower_bounds, upper_bounds):
+    """
+    Filter peaks based on the height
+    
+    :param peak_times: times of the all the peaks
+    :param peak_heights: heights of all the peaks
+    :param heights: heights for which to filter the peaks
+    :param lower_bounds: lower bounds of the heights (heights - delta_h)
+    :param upper_bounds: upper bounds of the heights (heights + delta_h)
+    """
     filtered_peak_t = {}
     filtered_peak_h = {}
     for h, lower_bound, upper_bound in zip(heights, lower_bounds, upper_bounds):  # loop over ranges
@@ -115,7 +142,35 @@ def sample_filter_peaks(peak_times, peak_heights, heights, lower_bounds, upper_b
     return filtered_peak_t, filtered_peak_h
 
 
+@jit(nopython=True, parallel=True)
+def map_peak_times_to_original(peak_times_interp, times):
+    """
+    Map the interpolated peak times to the nearest original failure times
+
+    :param peak_times_interp: peak times in the interpolated time grid
+    :param times: times of all the failures
+    """
+    n_peaks = len(peak_times_interp)
+    peak_times_original = np.empty(n_peaks, dtype=np.float64)
+    indices = np.searchsorted(times, peak_times_interp, side='left')
+    # indices = np.clip(indices, 1, len(times) - 1)
+    for i in prange(n_peaks):
+        left = times[indices[i] - 1]
+        right = times[indices[i]]
+        left_dist = np.abs(peak_times_interp[i] - left)
+        right_dist = np.abs(peak_times_interp[i] - right)
+        peak_times_original[i] = left if left_dist < right_dist else right
+    return peak_times_original
+
+
 def sample_heights_stats(times, sigma, threshold):
+    """
+    Compute the statistics of the peak heights for the given time series of failures
+    
+    :param times: times of all the failures
+    :param sigma: standard deviation of the gaussian filter (defines a local timescale)
+    :param threshold: threshold for finding peaks in the smoothed activity
+    """
     cumulative = np.arange(1, len(times) + 1)
     step_function = interp1d(times, cumulative, kind='previous', fill_value="extrapolate")
     t_interp = np.linspace(times[0], times[-1], num=len(times))
@@ -127,9 +182,8 @@ def sample_heights_stats(times, sigma, threshold):
 
     # Find peaks
     peak_idx, _ = find_peaks(smooth_activity, threshold=threshold)
-    peak_times_neighbours = t_interp[peak_idx]
-    peak_times = np.array([times[np.argmin(np.abs(times - t))] for t in peak_times_neighbours])
-
+    peak_times_interp = t_interp[peak_idx]  # peak times in the interpolated time grid
+    peak_times = map_peak_times_to_original(peak_times_interp, times)
     peak_heights = smooth_activity[peak_idx]
 
     return {
@@ -144,14 +198,26 @@ def sample_heights_stats(times, sigma, threshold):
 
 
 def all_sample_heights_stats(all_failure_times, sigma, threshold, save=False, filename=None):
+    """
+    Compute the statistics of the peak heights for all the samples
+    
+    :param all_failure_times: times of all the failures for all the samples
+    :param sigma: standard deviation of the gaussian filter (defines a local timescale)
+    :param threshold: threshold for finding peaks in the smoothed activity
+    :param save: whether to save the results
+    :param filename: name of the file to save the results
+    """
     all_heights_stats = {"all_peak_h": [],
+                         "mean_smooth_activity": None,
                          "mean_all_h": [],
                          "std_all_h": [],
                          "n_peaks": 0}
+    all_mean_smooth_activity = []
     for i in tqdm(range(len(all_failure_times)), total=len(all_failure_times), desc="Computing heights"):
         heights_stats = sample_heights_stats(all_failure_times[i], sigma, threshold)
         all_heights_stats["all_peak_h"].extend(heights_stats["peak_heights"])
-
+        all_mean_smooth_activity.extend(heights_stats["smooth_activity"])
+    all_heights_stats["mean_smooth_activity"] = np.mean(all_mean_smooth_activity)
     all_heights_stats["mean_all_h"] = np.mean(all_heights_stats["all_peak_h"])
     all_heights_stats["std_all_h"] = np.std(all_heights_stats["all_peak_h"], ddof=1)
     all_heights_stats["n_peaks"] = len(all_heights_stats["all_peak_h"])
@@ -166,6 +232,13 @@ def all_sample_heights_stats(all_failure_times, sigma, threshold, save=False, fi
 
 
 def concatenate_result(result_dict, heights, n_samples):
+    """
+    Concatenate the results of the sample analysis for all the samples
+    
+    :param result_dict: dictionary containing the results of the sample analysis for all the samples
+    :param heights: heights for which the activity was computed
+    :param n_samples: number of samples
+    """
     all_result = {}
     for h in heights:
         all_result[h] = np.concatenate([result_dict[i][h] for i in range(n_samples)], axis=0)
@@ -183,6 +256,7 @@ def sample_analysis(times,
                     t_start=1e-7,
                     t_stop=2,
                     num_time_windows=30,
+                    random_seed=0,
                     verbose=False,
                     save=False,
                     filename=None):
@@ -201,11 +275,10 @@ def sample_analysis(times,
     :param t_start: start time for the time windows
     :param t_stop: stop time for the time windows
     :param num_time_windows: number of time windows to consider when counting events
+    :param random_seed: random seed for reproducibility
     :param verbose: whether to print the results
     :param save: whether to save the results
     :param filename: name of the file to save the results
-
-    :return output_dict: dictionary containing the results of the analysis
     """
     if heights is None:
         heights = [0]
@@ -230,10 +303,11 @@ def sample_analysis(times,
     if compute_activity_for_random_heights:
         print("Computing activity for random heights")
 
-        np.random.seed(0)
+        np.random.seed(random_seed)
         random_peak_idx = np.random.choice(peak_idx, size=n_random_peaks, replace=False)
         random_peak_idx.sort()
-        random_peak_times = t_interp[random_peak_idx]
+        random_peak_times_interp = t_interp[random_peak_idx]
+        random_peak_times = map_peak_times_to_original(random_peak_times_interp, times)
         random_peak_heights = smooth_activity[random_peak_idx]
 
         # Time windows to consider when counting events
@@ -367,6 +441,18 @@ def sample_analysis(times,
 
 
 def n_events_around_microscopic_event(all_failure_times, N_random_peaks=20, t_start=1e-5, t_stop=1, num_time_windows=1000, save=False, filename=None):
+    """
+    Compute the number of events around a given number of microscopic events
+    
+    :param all_failure_times: times of all the failures for all the samples
+    :param N_random_peaks: number of random peaks
+    :param t_start: start time for the time windows
+    :param t_stop: stop time for the time windows
+    :param num_time_windows: number of time windows to consider when counting events
+    :param save: whether to save the results
+    :param filename: name of the file to save the results
+    """
+    
     time_windows = np.geomspace(t_start, t_stop, num=num_time_windows)
     all_n_events_before = []
     all_n_events_after = []
