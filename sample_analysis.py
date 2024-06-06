@@ -127,7 +127,9 @@ def sample_heights_stats(times, sigma, threshold):
 
     # Find peaks
     peak_idx, _ = find_peaks(smooth_activity, threshold=threshold)
-    peak_times = t_interp[peak_idx]
+    peak_times_neighbours = t_interp[peak_idx]
+    peak_times = np.array([times[np.argmin(np.abs(times - t))] for t in peak_times_neighbours])
+
     peak_heights = smooth_activity[peak_idx]
 
     return {
@@ -235,7 +237,7 @@ def sample_analysis(times,
         random_peak_heights = smooth_activity[random_peak_idx]
 
         # Time windows to consider when counting events
-        time_windows = np.linspace(t_start, t_stop, num=num_time_windows)
+        time_windows = np.geomspace(t_start, t_stop, num=num_time_windows)
 
         # Keep times within the range
         peak_cond = (random_peak_times-t_stop > 0) & (random_peak_times+t_stop < times[-1])
@@ -279,7 +281,7 @@ def sample_analysis(times,
         DELTA_H = var_h * heights
         LOWER_BOUNDS = heights - DELTA_H
         UPPER_BOUNDS = heights + DELTA_H
-        time_windows = np.linspace(t_start, t_stop, num=num_time_windows)
+        time_windows = np.geomspace(t_start, t_stop, num=num_time_windows)
 
         # Filter peaks by the given heights
         filtered_peak_times, filtered_peak_heights = sample_filter_peaks(peak_times=peak_times,
@@ -365,7 +367,7 @@ def sample_analysis(times,
 
 
 def n_events_around_microscopic_event(all_failure_times, N_random_peaks=20, t_start=1e-5, t_stop=1, num_time_windows=1000, save=False, filename=None):
-    time_windows = np.linspace(t_start, t_stop, num=num_time_windows)
+    time_windows = np.geomspace(t_start, t_stop, num=num_time_windows)
     all_n_events_before = []
     all_n_events_after = []
     for failure_times in tqdm(all_failure_times, total=len(all_failure_times), desc="Computing events around microscopic events"):
