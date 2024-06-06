@@ -163,17 +163,18 @@ def map_peak_times_to_original(peak_times_interp, times):
     return peak_times_original
 
 
-def sample_heights_stats(times, sigma, threshold):
+def sample_heights_stats(times, sigma, dt, threshold):
     """
     Compute the statistics of the peak heights for the given time series of failures
     
     :param times: times of all the failures
     :param sigma: standard deviation of the gaussian filter (defines a local timescale)
+    :param dt: time step for the interpolated time grid
     :param threshold: threshold for finding peaks in the smoothed activity
     """
     cumulative = np.arange(1, len(times) + 1)
     step_function = interp1d(times, cumulative, kind='previous', fill_value="extrapolate")
-    t_interp = np.linspace(times[0], times[-1], num=len(times))
+    t_interp = np.arange(times[0], times[-1], step=dt)
     cumulative_interp = step_function(t_interp)
 
     # Compute the activity and it's gaussian convolution
@@ -197,12 +198,13 @@ def sample_heights_stats(times, sigma, threshold):
     }
 
 
-def all_sample_heights_stats(all_failure_times, sigma, threshold, save=False, filename=None):
+def all_sample_heights_stats(all_failure_times, sigma, dt, threshold, save=False, filename=None):
     """
     Compute the statistics of the peak heights for all the samples
     
     :param all_failure_times: times of all the failures for all the samples
     :param sigma: standard deviation of the gaussian filter (defines a local timescale)
+    :param dt: time step for the interpolated time grid
     :param threshold: threshold for finding peaks in the smoothed activity
     :param save: whether to save the results
     :param filename: name of the file to save the results
@@ -214,7 +216,7 @@ def all_sample_heights_stats(all_failure_times, sigma, threshold, save=False, fi
                          "n_peaks": 0}
     all_mean_smooth_activity = []
     for i in tqdm(range(len(all_failure_times)), total=len(all_failure_times), desc="Computing heights"):
-        heights_stats = sample_heights_stats(all_failure_times[i], sigma, threshold)
+        heights_stats = sample_heights_stats(all_failure_times[i], sigma, dt, threshold)
         all_heights_stats["all_peak_h"].extend(heights_stats["peak_heights"])
         all_mean_smooth_activity.extend(heights_stats["smooth_activity"])
     all_heights_stats["mean_smooth_activity"] = np.mean(all_mean_smooth_activity)
@@ -246,8 +248,9 @@ def concatenate_result(result_dict, heights, n_samples):
 
 
 def sample_analysis(times,
-                    sigma,
-                    threshold,
+                    sigma=3.5,
+                    dt=1e-7,
+                    threshold=0.1,
                     compute_activity_for_random_heights=False,
                     n_random_peaks=10,
                     compute_activity_for_given_heights=False,
@@ -266,6 +269,7 @@ def sample_analysis(times,
 
     :param times: times of all the failures
     :param sigma: standard deviation of the gaussian filter (defines a local time scale)
+    :param dt: time step for the interpolated time grid
     :param threshold: threshold for finding peaks in the smoothed activity
     :param compute_activity_for_random_heights: whether to compute activity for random heights
     :param n_random_peaks: number of random peaks
@@ -284,7 +288,7 @@ def sample_analysis(times,
         heights = [0]
     output_dict = {}
 
-    heights_stats = sample_heights_stats(times, sigma, threshold)
+    heights_stats = sample_heights_stats(times, sigma, dt, threshold)
     t_interp = heights_stats["t_interp"]
     smooth_activity = heights_stats["smooth_activity"]
     peak_times = heights_stats["peak_times"]

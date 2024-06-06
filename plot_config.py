@@ -1,11 +1,12 @@
 import matplotlib
 
 matplotlib.rcdefaults()
-matplotlib.rcParams['text.usetex'] = False            # Use LaTeX for text rendering
+matplotlib.rcParams['text.usetex'] = True            # Use LaTeX for text rendering
 
 # Update font settings
 matplotlib.rcParams.update({
     'font.family': 'serif',                          # Use serif font family
+    'font.serif': 'Palatino',                        # Use Palatino as the standard font
     'text.latex.preamble': r'\usepackage{amsmath} \usepackage{mathpazo}',  # Use the amsmath and mathpazo package for LaTeX
 })
 
@@ -38,7 +39,7 @@ matplotlib.rcParams['grid.linewidth'] = 0.5      # Grid line width
 
 # Customize lines
 matplotlib.rcParams['lines.linewidth'] = 2.5       # Line width
-matplotlib.rcParams['lines.markersize'] = 6        # Marker size
+matplotlib.rcParams['lines.markersize'] = 10        # Marker size
 
 # Change figure and axes background colors
 matplotlib.rcParams['figure.facecolor'] = 'white'    # Figure background color
