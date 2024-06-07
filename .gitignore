@@ -4,3 +4,9 @@
 /__pycache__
 /failure_data
 *.ini
+/Sauvegardes 0706
+/figures/figs
+/data/sample_data
+/data
+/218000 peaks data
+*.pkl
