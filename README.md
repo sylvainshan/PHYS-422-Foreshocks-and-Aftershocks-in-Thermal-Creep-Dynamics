@@ -1,4 +1,4 @@
-# Foreshocks and Aftershocks in the Thermal Creep Regime
+# Foreshocks and Aftershocks in the Creep Regime
 
 This repository contains code and analysis tools for studying thermal avalanches in driven disordered systems, inspired by earthquake-like dynamics in depinning transitions. The project explores temporal correlations, aftershock statistics, and power-law scaling in thermally activated creep regimes.
 
