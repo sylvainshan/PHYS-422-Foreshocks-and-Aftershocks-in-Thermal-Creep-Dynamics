@@ -8,9 +8,9 @@ This repository contains code and analysis tools for studying thermal avalanches
 - **Root directory**: Python scripts for data processing, avalanche segmentation, and statistical analysis.
 
 ## 🛠 Model
-2D cellular automaton with thermal activation (implemented via `GooseEPM`).
+2D cellular automaton with thermal activation: [https://github.com/tdegeus/GooseEPM](GooseEPM)
 
 ## 📄 Reference
 Based on:  
 - de Geus et al., *"Dynamical heterogeneities of thermal creep in pinned interfaces"* (arXiv:2401.09830).  
-- Elastoplastic model: [https://github.com/tdegeus/GooseEPMCode extensions](https://github.com/tdegeus/GooseEPMCode extensions)
+- Elastoplastic model: [https://github.com/tdegeus/GooseEPM]
